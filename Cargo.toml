@@ -1,10 +1,17 @@
 [package]
 name = "sx127x_lora"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Charles Wade <charles.wade@rockets.utoledo.edu>"]
-description = "A Rust crate to use SX127X LoRa modules with the Raspberry Pi"
+repository = "https://github.com/mr-glt/sx127x_lora"
+homepage = "https://github.com/mr-glt/sx127x_lora"
 edition = "2018"
 license = "Apache-2.0"
+description = """
+The _sx127x_lora_ crate provides an interface to Semtech SX1276/77/78/79 based boards. Due to
+its dependency on the `rppal` crate, the library currently only works on Raspberry Pi. It
+requires that both the SPI and GPIO interfaces are enabled on the Pi. This can accomplished with
+`sudo raspi-config` and a reboot. __This library is under heavy development is subject to changes__
+"""
 
 [dependencies]
 rppal = "0.8"

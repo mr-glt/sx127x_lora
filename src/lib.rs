@@ -490,11 +490,6 @@ impl LoRa{
         LoRa::write_register(&self,REG_PREAMBLE_LSB, (length >> 0) as u8);
     }
 
-    /// Sets the sync word of the radio. Default value is `0x12`.
-    pub fn set_sync_word(&self, sw: i32){
-        LoRa::write_register(&self,REG_SYNC_WORD, sw as u8);
-    }
-
     /// Enables are disables the radio's CRC check. Default value is `false`.
     pub fn set_crc(&self, value: bool){
         let modem_config_2 = LoRa::read_register(&self,REG_MODEM_CONFIG_2);
@@ -564,7 +559,7 @@ impl LoRa{
     }
 
     /// Returns the frequency error of the last received packet in Hz.
-    pub fn packet_frequency_error(&self) -> i64{
+    pub fn get_packet_frequency_error(&self) -> i64{
         let mut freq_error: i32 = 0;
         freq_error = (LoRa::read_register(&self, REG_FREQ_ERROR_MSB) & 0x7) as i32;
         freq_error <<= 8i64;
