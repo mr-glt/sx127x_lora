@@ -2,7 +2,9 @@
 name = "sx127x_lora"
 version = "0.1.0"
 authors = ["Charles Wade <charles.wade@rockets.utoledo.edu>"]
+description = "A Rust crate to use SX127X LoRa modules with the Raspberry Pi"
 edition = "2018"
+license = "Apache-2.0"
 
 [dependencies]
 rppal = "0.8"
