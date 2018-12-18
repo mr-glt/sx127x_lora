@@ -1,0 +1,10 @@
+[package]
+name = "sx127x_lora"
+version = "0.1.0"
+authors = ["Charles Wade <charles.wade@rockets.utoledo.edu>"]
+edition = "2018"
+
+[dependencies]
+rppal = "0.8"
+spidev = "0.3.0"
+lazy_static = "1.2.0"
