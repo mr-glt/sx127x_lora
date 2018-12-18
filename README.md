@@ -1,4 +1,7 @@
 # sx127x_lora
+[![](http://meritbadge.herokuapp.com/sx127x-lora)](https://crates.io/crates/sx127x-lora)
+![](https://img.shields.io/hexpm/l/plug.svg)
+
 The _sx127x_lora_ crate provides an interface to Semtech SX1276/77/78/79 based boards. Due to
 its dependency on the `rppal` crate, the library currently only works on Raspberry Pi. It
 requires that both the SPI and GPIO interfaces are enabled on the Pi. This can accomplished with
