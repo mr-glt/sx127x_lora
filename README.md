@@ -30,7 +30,7 @@ fn main(){
 Utilizes a `Arc<Mutex<sx127x_lora::LoRa>>` to allow for an asynchronous interrupt to be handled
 when a new packet is received. The `lazy_static` crate is used to create a global static ref.
 The example is utilizes the `rppal` crate directly to setup the interrupt pin. This will change
-in the future.
+in the future. Make sure to add `lazy_static = "1.2.0"` under `[dependencies]` in your Cargo.toml.
 ```rust
 #[macro_use]
 extern crate lazy_static;
