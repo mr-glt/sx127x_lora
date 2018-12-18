@@ -9,7 +9,7 @@ requires that both the SPI and GPIO interfaces are enabled on the Pi. This can a
 
 # Examples
 ## Basic send
-```no_run
+```rust
 extern crate sx127x_lora;
 const LORA_CS_PIN: u8 = 8;
 const DIO_0_PIN: u8 = 20;
@@ -31,7 +31,7 @@ Utilizes a `Arc<Mutex<sx127x_lora::LoRa>>` to allow for an asynchronous interrup
 when a new packet is received. The `lazy_static` crate is used to create a global static ref.
 The example is utilizes the `rppal` crate directly to setup the interrupt pin. This will change
 in the future.
-```no_run
+```rust
 #[macro_use]
 extern crate lazy_static;
 extern crate sx127x_lora;
