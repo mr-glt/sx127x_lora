@@ -16,4 +16,3 @@ requires that both the SPI and GPIO interfaces are enabled on the Pi. This can a
 [dependencies]
 rppal = "0.8"
 spidev = "0.3.0"
-lazy_static = "1.2.0"
