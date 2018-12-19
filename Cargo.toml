@@ -7,7 +7,7 @@ readme = "README.md"
 edition = "2018"
 license = "Apache-2.0"
 categories = ["embedded", "hardware-support"]
-keywords = ["raspberry","pi","lora","sx1276","sx1277","sx1278","sx1279","radio"]
+keywords = ["raspberry","pi","lora","sx1276","radio"]
 description = "The sx127x_lora crate provides an interface to Semtech SX1276/77/78/79 based boards."
 
 [dependencies]
