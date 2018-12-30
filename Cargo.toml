@@ -1,15 +1,15 @@
 [package]
 name = "sx127x_lora"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Charles Wade <charles.wade@rockets.utoledo.edu>"]
 repository = "https://github.com/mr-glt/sx127x_lora"
 readme = "README.md"
 edition = "2018"
 license = "Apache-2.0"
-categories = ["embedded", "hardware-support"]
-keywords = ["raspberry","pi","lora","sx1276","radio"]
-description = "The sx127x_lora crate provides an interface to Semtech SX1276/77/78/79 based boards."
+categories = ["embedded", "hardware-support", "no-std"]
+keywords = ["embedded-hal-driver","lora","sx1276","radio"]
+description = "A platform-agnostic driver for the Semtech SX1276/77/78/79 based boards."
 
 [dependencies]
-rppal = "0.8"
-spidev = "0.3.0"
+embedded-hal = "0.2.2"
+bit_field = "0.9.0"
