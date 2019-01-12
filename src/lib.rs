@@ -4,7 +4,7 @@
 #![crate_name = "sx127x_lora"]
 
 //! # sx127x_lora
-//!  A platform-agnostic driver for the Semtech SX1276/77/78/79 based boards. It supports any device that
+//!  A platform-agnostic driver for Semtech SX1276/77/78/79 based boards. It supports any device that
 //! implements the `embedded-hal` traits. Devices are connected over SPI and require an extra GPIO pin for
 //! RESET. This cate works with any Semtech based board including:
 //! * Modtronix inAir4, inAir9, and inAir9B
@@ -214,7 +214,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
     /// array and a payload size and returns the number of bytes sent if successful.
     pub fn transmit_payload(&mut self, buffer: [u8; 255], payload_size: usize)
                             -> Result<usize,()>{
-        if self.is_transmitting() {
+        if self.transmitting() {
             Err(())
         }else{
             self.set_mode(RadioMode::Stdby);
@@ -227,9 +227,8 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
             self.write_register(Register::RegIrqFlags.addr(), 0).unwrap();
             self.write_register(Register::RegFifoAddrPtr.addr(), 0).unwrap();
             self.write_register(Register::RegPayloadLength.addr(), 0).unwrap();
-
-            for b in 0..payload_size{
-                self.write_register(Register::RegFifo.addr(), buffer[b]).unwrap();
+            for byte in buffer.iter().take(payload_size){
+                self.write_register(Register::RegFifo.addr(), *byte).unwrap();
             }
             self.write_register(Register::RegPayloadLength.addr(),payload_size as u8).unwrap();
             self.set_mode(RadioMode::Tx);
@@ -250,7 +249,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
             Some(value) => {
                 while (!self.read_register(Register::RegIrqFlags.addr()).unwrap().get_bit(6))
                     && (count < (value * 10)) {
-                    count = count + 1;
+                    count += 1;
                     self.delay.delay_ms(100);
                 }
                 if count >= (value * 10) {
@@ -289,7 +288,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
     }
 
     /// Returns true if the radio is currently transmitting a packet.
-    pub fn is_transmitting(&mut self) -> bool {
+    pub fn transmitting(&mut self) -> bool {
         if (self.read_register(Register::RegOpMode.addr()).unwrap() & RadioMode::Tx.addr())
             == RadioMode::Tx.addr() {
             true
@@ -342,7 +341,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
                 self.write_register(Register::RegPaDac.addr(), 0x84).unwrap();
                 self.set_ocp(100);
             }
-            level = level - 2;
+            level -= 2;
             self.write_register(Register::RegPaConfig.addr(), PaConfig::PaBoost.addr()
                 | level as u8).unwrap();
         }
@@ -381,9 +380,9 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
         let base = 1;
         let frf = (freq * (base << 19)) / 32;
         // write registers
-        self.write_register(Register::RegFrfMsb.addr(), ((frf & 0xFF0000) >> 16) as u8).unwrap();
-        self.write_register(Register::RegFrfMid.addr(), ((frf & 0x00FF00) >> 8) as u8).unwrap();
-        self.write_register(Register::RegFrfLsb.addr(), (frf & 0x0000FF) as u8).unwrap();
+        self.write_register(Register::RegFrfMsb.addr(), ((frf & 0x00FF_0000) >> 16) as u8).unwrap();
+        self.write_register(Register::RegFrfMid.addr(), ((frf & 0x0000_FF00) >> 8) as u8).unwrap();
+        self.write_register(Register::RegFrfLsb.addr(), (frf & 0x0000_00FF) as u8).unwrap();
     }
 
     /// Sets the radio to use an explicit header. Default state is `ON`.
@@ -430,15 +429,15 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
     pub fn set_signal_bandwidth(&mut self, sbw: i64){
         let bw: i64;
         match sbw {
-            7800 => bw = 0,
-            10400 => bw = 1,
-            15600 => bw = 2,
-            20800 => bw = 3,
-            31250 => bw = 4,
-            41700 => bw = 5,
-            62500 => bw = 6,
-            125000 => bw = 7,
-            250000 => bw = 8,
+            7_800 => bw = 0,
+            10_400 => bw = 1,
+            15_600 => bw = 2,
+            20_800 => bw = 3,
+            31_250 => bw = 4,
+            41_700 => bw = 5,
+            62_500 => bw = 6,
+            125_000 => bw = 7,
+            250_000 => bw = 8,
             _ => bw = 9,
         }
         let modem_config_1 = self.read_register(Register::RegModemConfig1.addr()).unwrap();
@@ -466,7 +465,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
     /// Default value is `8`.
     pub fn set_preamble_length(&mut self, length: i64) {
         self.write_register(Register::RegPreambleMsb.addr(), (length >> 8) as u8).unwrap();
-        self.write_register(Register::RegPreambleLsb.addr(), (length >> 0) as u8).unwrap();
+        self.write_register(Register::RegPreambleLsb.addr(), length as u8).unwrap();
     }
 
     /// Enables are disables the radio's CRC check. Default value is `false`.
@@ -500,45 +499,42 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
     pub fn get_signal_bandwidth(&mut self) -> i64 {
         let bw = self.read_register(Register::RegModemConfig1.addr()).unwrap() >> 4;
         match bw {
-            0 => 7800,
-            1 => 10400,
-            2 => 15600,
-            3 => 20800,
-            4 => 312500,
-            5 => 41700,
-            6 => 62500,
-            7 => 125000,
-            8 => 250000,
-            9 => 500000,
+            0 => 7_800,
+            1 => 10_400,
+            2 => 15_600,
+            3 => 20_800,
+            4 => 31_250,
+            5 => 41_700,
+            6 => 62_500,
+            7 => 125_000,
+            8 => 250_000,
+            9 => 500_000,
             _ => -1,
         }
     }
 
     /// Returns the RSSI of the last received packet.
     pub fn get_packet_rssi(&mut self) -> i32 {
-        (self.read_register(Register::RegPktRssiValue.addr()).unwrap() as i32) - 157
+        i32::from(self.read_register(Register::RegPktRssiValue.addr()).unwrap()) - 157
     }
 
     /// Returns the signal to noise radio of the the last received packet.
     pub fn get_packet_snr(&mut self) -> f64 {
-        ((self.read_register(Register::RegPktSnrValue.addr()).unwrap() as f64) * 0.25)
+        f64::from(self.read_register(Register::RegPktSnrValue.addr()).unwrap())
     }
 
     /// Returns the frequency error of the last received packet in Hz.
     pub fn get_packet_frequency_error(&mut self) -> i64{
         let mut freq_error: i32 = 0;
-        freq_error = (self.read_register( Register::RegFreqErrorMsb.addr()).unwrap() & 0x7) as i32;
+        freq_error = i32::from(self.read_register( Register::RegFreqErrorMsb.addr()).unwrap() & 0x7);
         freq_error <<= 8i64;
-        freq_error += (self.read_register(Register::RegFreqErrorMid.addr()).unwrap()) as i32;
+        freq_error += i32::from(self.read_register(Register::RegFreqErrorMid.addr()).unwrap());
         freq_error <<= 8i64;
-        freq_error += (self.read_register( Register::RegFreqErrorLsb.addr()).unwrap()) as i32;
+        freq_error += i32::from(self.read_register( Register::RegFreqErrorLsb.addr()).unwrap());
 
-        if self.read_register(Register::RegFreqErrorMsb.addr()).unwrap() & 0x8 == 1 { // Sign bit is on
-            freq_error -= 524288; // B1000'0000'0000'0000'0000
-        }
-        let f_xtal = 32000000; // FXOSC: crystal oscillator (XTAL) frequency (2.5. Chip Specification, p. 14)
-        let f_error = (((freq_error as f64) * (1i64 << 24) as f64) / f_xtal as f64) *
-            (self.get_signal_bandwidth() as f64 / 500000.0f64); // p. 37
+        let f_xtal = 32_000_000; // FXOSC: crystal oscillator (XTAL) frequency (2.5. Chip Specification, p. 14)
+        let f_error = ((f64::from(freq_error) * (1i64 << 24) as f64) / f64::from(f_xtal)) *
+            (self.get_signal_bandwidth() as f64 / 500_000.0f64); // p. 37
         (f_error as i64)
     }
 
@@ -591,8 +587,8 @@ pub enum RadioMode{
 }
 
 impl RadioMode {
-    /// Returns the address of the a mode.
-    pub fn addr(&self) -> u8 {
-        *self as u8
+    /// Returns the address of the mode.
+    pub fn addr(self) -> u8 {
+        self as u8
     }
 }

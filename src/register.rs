@@ -51,19 +51,19 @@ pub enum IRQ{
 }
 
 impl Register {
-    pub fn addr(&self) -> u8 {
-        *self as u8
+    pub fn addr(self) -> u8 {
+        self as u8
     }
 }
 
 impl PaConfig {
-    pub fn addr(&self) -> u8 {
-        *self as u8
+    pub fn addr(self) -> u8 {
+        self as u8
     }
 }
 
 impl IRQ {
-    pub fn addr(&self) -> u8 {
-        *self as u8
+    pub fn addr(self) -> u8 {
+        self as u8
     }
 }

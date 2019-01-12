@@ -8,7 +8,7 @@ edition = "2018"
 license = "Apache-2.0"
 categories = ["embedded", "hardware-support", "no-std"]
 keywords = ["embedded-hal-driver","lora","sx1276","radio"]
-description = "A platform-agnostic driver for the Semtech SX1276/77/78/79 based boards."
+description = "A platform-agnostic driver for Semtech SX1276/77/78/79 based boards."
 
 [dependencies]
 embedded-hal = "0.2.2"
