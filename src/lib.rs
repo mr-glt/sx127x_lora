@@ -232,9 +232,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
             }
             self.write_register(Register::RegPayloadLength.addr(),payload_size as u8).unwrap();
             self.set_mode(RadioMode::Tx);
-            while !self.read_register(Register::RegIrqFlags.addr()).unwrap().get_bit(3){
-            }
-            self.write_register(Register::RegIrqFlags.addr(), 1).unwrap();
+            while self.transmitting() {};
             Ok(payload_size)
         }
     }
