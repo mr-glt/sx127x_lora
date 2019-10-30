@@ -212,7 +212,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
 
     /// Transmits up to 255 bytes of data. To avoid the use of an allocator, this takes a fixed 255 u8
     /// array and a payload size and returns the number of bytes sent if successful.
-    pub fn transmit_payload(&mut self, buffer: [u8; 255], payload_size: usize)
+    pub fn transmit_payload_busy(&mut self, buffer: [u8; 255], payload_size: usize)
                             -> Result<usize,()>{
         if self.transmitting() {
             Err(())
