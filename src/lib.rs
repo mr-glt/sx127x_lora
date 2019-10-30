@@ -237,6 +237,34 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
         }
     }
 
+    pub fn set_dio0_tx_done(&mut self) -> Result<(),()> {
+        self.write_register(Register::RegDioMapping1.addr(), 0b01_00_00_00)
+    }
+
+    pub fn transmit_payload(&mut self, buffer: [u8; 255], payload_size: usize)
+                            -> Result<(),()>{
+        if self.transmitting() {
+            Err(())
+        }else{
+            self.set_mode(RadioMode::Stdby);
+            if self.explicit_header {
+                self.set_explicit_header_mode();
+            }else{
+                self.set_implicit_header_mode();
+            }
+
+            self.write_register(Register::RegIrqFlags.addr(), 0).unwrap();
+            self.write_register(Register::RegFifoAddrPtr.addr(), 0).unwrap();
+            self.write_register(Register::RegPayloadLength.addr(), 0).unwrap();
+            for byte in buffer.iter().take(payload_size){
+                self.write_register(Register::RegFifo.addr(), *byte).unwrap();
+            }
+            self.write_register(Register::RegPayloadLength.addr(),payload_size as u8).unwrap();
+            self.set_mode(RadioMode::Tx);
+            Ok(())
+        }
+    }
+
     /// Blocks the current thread, returning the size of a packet if one is received or an error is the
     /// task timed out. The timeout can be supplied with None to make it poll indefinitely or
     /// with `Some(timeout_in_seconds)`
