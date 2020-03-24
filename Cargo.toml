@@ -1,6 +1,6 @@
 [package]
 name = "sx127x_lora"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Charles Wade <charles.wade@rockets.utoledo.edu>"]
 repository = "https://github.com/mr-glt/sx127x_lora"
 readme = "README.md"
