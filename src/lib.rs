@@ -281,18 +281,18 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
 
     /// Blocks the current thread, returning the size of a packet if one is received or an error is the
     /// task timed out. The timeout can be supplied with None to make it poll indefinitely or
-    /// with `Some(timeout_in_seconds)`
-    pub fn poll_irq(&mut self, timeout: Option<i32>) -> Result<usize,Error<E, CS::Error, RESET::Error>>{
+    /// with `Some(timeout_in_mill_seconds)`
+    pub fn poll_irq(&mut self, timeout_ms: Option<i32>) -> Result<usize,Error<E, CS::Error, RESET::Error>>{
         self.set_mode(RadioMode::RxContinuous)?;
         let mut count = 0;
-        match timeout {
+        match timeout_ms {
             Some(value) => {
                 while (!self.read_register(Register::RegIrqFlags.addr())?.get_bit(6))
-                    && (count < (value * 10)) {
+                    && (count < value) {
                     count += 1;
-                    self.delay.delay_ms(100);
+                    self.delay.delay_ms(1);
                 }
-                if count >= (value * 10) {
+                if count >= value {
                     Err(Uninformative)
                 }else {
                     self.clear_irq()?;
