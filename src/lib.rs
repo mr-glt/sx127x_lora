@@ -284,19 +284,22 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
     /// with `Some(timeout_in_mill_seconds)`
     pub fn poll_irq(&mut self, timeout_ms: Option<i32>) -> Result<usize,Error<E, CS::Error, RESET::Error>>{
         self.set_mode(RadioMode::RxContinuous)?;
-        let mut count = 0;
         match timeout_ms {
             Some(value) => {
-                while (!self.read_register(Register::RegIrqFlags.addr())?.get_bit(6))
-                    && (count < value) {
+                let mut count = 0;
+                let packet_ready = loop {
+                    let packet_ready = self.read_register(Register::RegIrqFlags.addr())?.get_bit(6);
+                    if count >= value || packet_ready  {
+                        break packet_ready;
+                    }
                     count += 1;
                     self.delay.delay_ms(1);
-                }
-                if count >= value {
-                    Err(Uninformative)
-                }else {
+                };
+                if packet_ready {
                     self.clear_irq()?;
                     Ok(self.read_register(Register::RegRxNbBytes.addr())? as usize)
+                } else {
+                    Err(Uninformative)
                 }
             },
             None => {
