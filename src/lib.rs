@@ -185,6 +185,11 @@ pub enum Error<SPI, CS, RESET> {
 
 use Error::*;
 
+#[cfg(not(feature = "version_0x09"))]
+const VERSION_CHECK: u8 = 0x12;
+
+#[cfg(feature = "version_0x09")]
+const VERSION_CHECK: u8 = 0x09;
 
 impl<'a, SPI, CS, RESET, DELAY, E> LoRa<'a, SPI, CS, RESET, DELAY>
     where SPI: Transfer<u8, Error = E> + Write<u8, Error = E>,
@@ -208,7 +213,7 @@ impl<'a, SPI, CS, RESET, DELAY, E> LoRa<'a, SPI, CS, RESET, DELAY>
         sx127x.reset.set_high().map_err(Reset)?;
         sx127x.delay.delay_ms(10);
         let version = sx127x.read_register(Register::RegVersion.addr())?;
-        if version == 0x12 {
+        if version == VERSION_CHECK {
             sx127x.set_mode(RadioMode::Sleep)?;
             sx127x.set_frequency(frequency)?;
             sx127x.write_register(Register::RegFifoTxBaseAddr.addr(),0)?;
@@ -219,7 +224,7 @@ impl<'a, SPI, CS, RESET, DELAY, E> LoRa<'a, SPI, CS, RESET, DELAY>
             sx127x.set_mode(RadioMode::Stdby)?;
             sx127x.cs.set_high().map_err(CS)?;
             Ok(sx127x)
-        }else{
+        } else {
             Err(Error::VersionMismatch(version))
         }
     }

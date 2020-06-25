@@ -11,5 +11,9 @@ keywords = ["embedded-hal-driver","lora","sx1276","radio"]
 description = "A platform-agnostic driver for Semtech SX1276/77/78/79 based boards."
 
 [dependencies]
-embedded-hal = "0.2.2"
-bit_field = "0.9.0"
+embedded-hal = "~0.2"
+bit_field = "~0.10"
+
+[features]
+version_0x09 = []
+default = []
