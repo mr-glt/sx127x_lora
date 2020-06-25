@@ -163,8 +163,8 @@ pub const MODE: Mode = Mode {
 };
 
 /// Provides high-level access to Semtech SX1276/77/78/79 based boards connected to a Raspberry Pi
-pub struct LoRa<'a, SPI, CS, RESET> {
-    spi: &'a mut SPI,
+pub struct LoRa<SPI, CS, RESET> {
+    spi: SPI,
     cs: CS,
     reset: RESET,
     frequency: i64,
@@ -190,12 +190,12 @@ const VERSION_CHECK: u8 = 0x12;
 #[cfg(feature = "version_0x09")]
 const VERSION_CHECK: u8 = 0x09;
 
-impl<'a, SPI, CS, RESET, E> LoRa<'a, SPI, CS, RESET>
+impl<SPI, CS, RESET, E> LoRa<SPI, CS, RESET>
     where SPI: Transfer<u8, Error = E> + Write<u8, Error = E>,
           CS: OutputPin, RESET: OutputPin {
     /// Builds and returns a new instance of the radio. Only one instance of the radio should exist at a time.
     /// This also preforms a hardware reset of the module and then puts it in standby.
-    pub fn new(spi: &'a mut SPI, cs: CS, reset: RESET, frequency: i64, delay: &mut dyn DelayMs<u8>)
+    pub fn new(spi: SPI, cs: CS, reset: RESET, frequency: i64, delay: &mut dyn DelayMs<u8>)
                -> Result<Self, Error<E, CS::Error, RESET::Error>> {
 
         let mut sx127x = LoRa {
