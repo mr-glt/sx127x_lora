@@ -163,11 +163,10 @@ pub const MODE: Mode = Mode {
 };
 
 /// Provides high-level access to Semtech SX1276/77/78/79 based boards connected to a Raspberry Pi
-pub struct LoRa<'a, SPI, CS, RESET, DELAY> {
+pub struct LoRa<'a, SPI, CS, RESET> {
     spi: &'a mut SPI,
     cs: CS,
     reset: RESET,
-    delay: &'a mut DELAY,
     frequency: i64,
     pub explicit_header: bool,
     pub mode: RadioMode,
@@ -191,27 +190,26 @@ const VERSION_CHECK: u8 = 0x12;
 #[cfg(feature = "version_0x09")]
 const VERSION_CHECK: u8 = 0x09;
 
-impl<'a, SPI, CS, RESET, DELAY, E> LoRa<'a, SPI, CS, RESET, DELAY>
+impl<'a, SPI, CS, RESET, E> LoRa<'a, SPI, CS, RESET>
     where SPI: Transfer<u8, Error = E> + Write<u8, Error = E>,
-          CS: OutputPin, RESET: OutputPin, DELAY: DelayMs<u8>{
+          CS: OutputPin, RESET: OutputPin {
     /// Builds and returns a new instance of the radio. Only one instance of the radio should exist at a time.
     /// This also preforms a hardware reset of the module and then puts it in standby.
-    pub fn new(spi: &'a mut SPI, cs: CS, reset: RESET, frequency: i64, delay: &'a mut DELAY)
+    pub fn new(spi: &'a mut SPI, cs: CS, reset: RESET, frequency: i64, delay: &mut dyn DelayMs<u8>)
                -> Result<Self, Error<E, CS::Error, RESET::Error>> {
 
         let mut sx127x = LoRa {
             spi,
             cs,
             reset,
-            delay,
             frequency,
             explicit_header: true,
             mode: RadioMode::Sleep,
         };
         sx127x.reset.set_low().map_err(Reset)?;
-        sx127x.delay.delay_ms(10);
+        delay.delay_ms(10);
         sx127x.reset.set_high().map_err(Reset)?;
-        sx127x.delay.delay_ms(10);
+        delay.delay_ms(10);
         let version = sx127x.read_register(Register::RegVersion.addr())?;
         if version == VERSION_CHECK {
             sx127x.set_mode(RadioMode::Sleep)?;
@@ -287,7 +285,7 @@ impl<'a, SPI, CS, RESET, DELAY, E> LoRa<'a, SPI, CS, RESET, DELAY>
     /// Blocks the current thread, returning the size of a packet if one is received or an error is the
     /// task timed out. The timeout can be supplied with None to make it poll indefinitely or
     /// with `Some(timeout_in_mill_seconds)`
-    pub fn poll_irq(&mut self, timeout_ms: Option<i32>) -> Result<usize,Error<E, CS::Error, RESET::Error>>{
+    pub fn poll_irq(&mut self, timeout_ms: Option<i32>, delay: &mut dyn DelayMs<u8>) -> Result<usize,Error<E, CS::Error, RESET::Error>>{
         self.set_mode(RadioMode::RxContinuous)?;
         match timeout_ms {
             Some(value) => {
@@ -298,7 +296,7 @@ impl<'a, SPI, CS, RESET, DELAY, E> LoRa<'a, SPI, CS, RESET, DELAY>
                         break packet_ready;
                     }
                     count += 1;
-                    self.delay.delay_ms(1);
+                    delay.delay_ms(1);
                 };
                 if packet_ready {
                     self.clear_irq()?;
@@ -309,7 +307,7 @@ impl<'a, SPI, CS, RESET, DELAY, E> LoRa<'a, SPI, CS, RESET, DELAY>
             },
             None => {
                 while !self.read_register(Register::RegIrqFlags.addr())?.get_bit(6) {
-                    self.delay.delay_ms(100);
+                    delay.delay_ms(100);
                 }
                 self.clear_irq()?;
                 Ok(self.read_register(Register::RegRxNbBytes.addr())? as usize)
