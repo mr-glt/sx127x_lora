@@ -38,13 +38,13 @@ pub enum Register {
     RegPaDac = 0x4d,
 }
 #[derive(Clone, Copy)]
-pub enum PaConfig{
+pub enum PaConfig {
     PaBoost = 0x80,
     PaOutputRfoPin = 0,
 }
 
 #[derive(Clone, Copy)]
-pub enum IRQ{
+pub enum IRQ {
     IrqTxDoneMask = 0x08,
     IrqPayloadCrcErrorMask = 0x20,
     IrqRxDoneMask = 0x40,
