@@ -255,7 +255,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
         self.write_register(Register::RegDioMapping1.addr(), 0b01_00_00_00)
     }
 
-    pub fn transmit_payload(&mut self, buffer: [u8; 255], payload_size: usize)
+    pub fn transmit_payload(&mut self, payload: &[u8])
                             -> Result<(),Error<E, CS::Error, RESET::Error>>{
         if self.transmitting()? {
             Err(Transmitting)
@@ -270,10 +270,10 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
             self.write_register(Register::RegIrqFlags.addr(), 0)?;
             self.write_register(Register::RegFifoAddrPtr.addr(), 0)?;
             self.write_register(Register::RegPayloadLength.addr(), 0)?;
-            for byte in buffer.iter().take(payload_size){
-                self.write_register(Register::RegFifo.addr(), *byte)?;
+            for &byte in payload.iter().take(255) {
+                self.write_register(Register::RegFifo.addr(), byte)?;
             }
-            self.write_register(Register::RegPayloadLength.addr(),payload_size as u8)?;
+            self.write_register(Register::RegPayloadLength.addr(),payload.len().min(255) as u8)?;
             self.set_mode(RadioMode::Tx)?;
             Ok(())
         }
