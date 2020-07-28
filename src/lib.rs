@@ -183,6 +183,7 @@ pub enum Error<SPI, CS, RESET> {
 }
 
 use Error::*;
+use crate::register::{FskDataModulationShaping, FskRampUpRamDown};
 
 #[cfg(not(feature = "version_0x09"))]
 const VERSION_CHECK: u8 = 0x12;
@@ -509,19 +510,18 @@ where
         &mut self,
         sbw: i64,
     ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
-        let bw: i64;
-        match sbw {
-            7_800 => bw = 0,
-            10_400 => bw = 1,
-            15_600 => bw = 2,
-            20_800 => bw = 3,
-            31_250 => bw = 4,
-            41_700 => bw = 5,
-            62_500 => bw = 6,
-            125_000 => bw = 7,
-            250_000 => bw = 8,
-            _ => bw = 9,
-        }
+        let bw: i64 = match sbw {
+            7_800 => 0,
+            10_400 => 1,
+            15_600 => 2,
+            20_800 => 3,
+            31_250 => 4,
+            41_700 => 5,
+            62_500 => 6,
+            125_000 => 7,
+            250_000 => 8,
+            _ => 9,
+        };
         let modem_config_1 = self.read_register(Register::RegModemConfig1.addr())?;
         self.write_register(
             Register::RegModemConfig1.addr(),
@@ -666,6 +666,29 @@ where
         self.spi.write(&buffer).map_err(SPI)?;
         self.cs.set_high().map_err(CS)?;
         Ok(())
+    }
+
+    pub fn put_in_fsk_mode(&mut self) -> Result<(), Error<E, CS::Error, RESET::Error>> {
+        // Put in FSK mode
+        let op_mode: &mut u8 = 0x0
+            .set_bit(7, false)  // FSK mode
+            .set_bits(5..6, 0x00)   // FSK modulation
+            .set_bit(3, false)  //Low freq registers
+            .set_bits(0..2, 0b011); // Mode
+
+        self.write_register(Register::RegOpMode as u8, *op_mode)
+    }
+
+    pub fn set_fsk_pa_ramp(
+        &mut self,
+        modulation_shaping: FskDataModulationShaping,
+        ramp: FskRampUpRamDown
+    ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
+        let pa_ramp: &mut u8 = 0x0
+            .set_bits(5..6, modulation_shaping as u8)
+            .set_bits(0..3, ramp as u8);
+
+        self.write_register(Register::RegPaRamp as u8, *pa_ramp)
     }
 }
 /// Modes of the radio and their corresponding register values.
