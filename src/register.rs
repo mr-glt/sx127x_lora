@@ -8,6 +8,7 @@ pub enum Register {
     RegFrfMid = 0x07,
     RegFrfLsb = 0x08,
     RegPaConfig = 0x09,
+    RegPaRamp = 0x0a,
     RegOcp = 0x0b,
     RegLna = 0x0c,
     RegFifoAddrPtr = 0x0d,
@@ -38,13 +39,13 @@ pub enum Register {
     RegPaDac = 0x4d,
 }
 #[derive(Clone, Copy)]
-pub enum PaConfig{
+pub enum PaConfig {
     PaBoost = 0x80,
     PaOutputRfoPin = 0,
 }
 
 #[derive(Clone, Copy)]
-pub enum IRQ{
+pub enum IRQ {
     IrqTxDoneMask = 0x08,
     IrqPayloadCrcErrorMask = 0x20,
     IrqRxDoneMask = 0x40,
@@ -66,4 +67,32 @@ impl IRQ {
     pub fn addr(self) -> u8 {
         self as u8
     }
+}
+
+#[derive(Clone, Copy)]
+pub enum FskDataModulationShaping {
+    None = 1,
+    GaussianBt1d0 = 2,
+    GaussianBt0d5 = 10,
+    GaussianBt0d3 = 11
+}
+
+#[derive(Clone, Copy)]
+pub enum FskRampUpRamDown {
+    _3d4ms = 0b000,
+    _2ms = 0b0001,
+    _1ms = 0b0010,
+    _500us = 0b0011,
+    _250us = 0b0100,
+    _125us = 0b0101,
+    _100us = 0b0110,
+    _62us = 0b0111,
+    _50us = 0b1000,
+    _40us = 0b1001,
+    _31us = 0b1010,
+    _25us = 0b1011,
+    _20us = 0b1100,
+    _15us = 0b1101,
+    _12us = 0b1110,
+    _10us = 0b1111
 }
