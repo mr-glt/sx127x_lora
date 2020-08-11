@@ -17,7 +17,7 @@ fn main(){
     let options = SpidevOptions::new()
         .bits_per_word(8)
         .max_speed_hz(20_000)
-        .mode(spidev::SPI_MODE_0)
+        .mode(spidev::SpiModeFlags::SPI_MODE_0)
         .build();
     spi.configure(&options).unwrap();
 
