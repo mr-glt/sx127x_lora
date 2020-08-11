@@ -182,8 +182,8 @@ pub enum Error<SPI, CS, RESET> {
     Transmitting,
 }
 
-use Error::*;
 use crate::register::{FskDataModulationShaping, FskRampUpRamDown};
+use Error::*;
 
 #[cfg(not(feature = "version_0x09"))]
 const VERSION_CHECK: u8 = 0x12;
@@ -271,8 +271,7 @@ where
 
     pub fn transmit_payload(
         &mut self,
-        buffer: [u8; 255],
-        payload_size: usize,
+        payload: &[u8],
     ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
         if self.transmitting()? {
             Err(Transmitting)
@@ -287,10 +286,13 @@ where
             self.write_register(Register::RegIrqFlags.addr(), 0)?;
             self.write_register(Register::RegFifoAddrPtr.addr(), 0)?;
             self.write_register(Register::RegPayloadLength.addr(), 0)?;
-            for byte in buffer.iter().take(payload_size) {
-                self.write_register(Register::RegFifo.addr(), *byte)?;
+            for &byte in payload.iter().take(255) {
+                self.write_register(Register::RegFifo.addr(), byte)?;
             }
-            self.write_register(Register::RegPayloadLength.addr(), payload_size as u8)?;
+            self.write_register(
+                Register::RegPayloadLength.addr(),
+                payload.len().min(255) as u8,
+            )?;
             self.set_mode(RadioMode::Tx)?;
             Ok(())
         }
@@ -670,25 +672,27 @@ where
 
     pub fn put_in_fsk_mode(&mut self) -> Result<(), Error<E, CS::Error, RESET::Error>> {
         // Put in FSK mode
-        let op_mode: &mut u8 = 0x0
-            .set_bit(7, false)  // FSK mode
-            .set_bits(5..6, 0x00)   // FSK modulation
-            .set_bit(3, false)  //Low freq registers
+        let mut op_mode: u8 = 0x0;
+        op_mode
+            .set_bit(7, false) // FSK mode
+            .set_bits(5..6, 0x00) // FSK modulation
+            .set_bit(3, false) //Low freq registers
             .set_bits(0..2, 0b011); // Mode
 
-        self.write_register(Register::RegOpMode as u8, *op_mode)
+        self.write_register(Register::RegOpMode as u8, op_mode)
     }
 
     pub fn set_fsk_pa_ramp(
         &mut self,
         modulation_shaping: FskDataModulationShaping,
-        ramp: FskRampUpRamDown
+        ramp: FskRampUpRamDown,
     ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
-        let pa_ramp: &mut u8 = 0x0
+        let mut pa_ramp: u8 = 0x0;
+        pa_ramp
             .set_bits(5..6, modulation_shaping as u8)
             .set_bits(0..3, ramp as u8);
 
-        self.write_register(Register::RegPaRamp as u8, *pa_ramp)
+        self.write_register(Register::RegPaRamp as u8, pa_ramp)
     }
 }
 /// Modes of the radio and their corresponding register values.

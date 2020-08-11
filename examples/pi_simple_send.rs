@@ -16,7 +16,7 @@ fn main() {
     let options = SpidevOptions::new()
         .bits_per_word(8)
         .max_speed_hz(20_000)
-        .mode(spidev::SPI_MODE_0)
+        .mode(spidev::SpiModeFlags::SPI_MODE_0)
         .build();
     spi.configure(&options).unwrap();
 
@@ -33,15 +33,11 @@ fn main() {
 
     lora.set_tx_power(17, 1); //Using PA_BOOST. See your board for correct pin.
 
-    let message = "Hello, world!";
-    let mut buffer = [0; 255];
-    for (i, c) in message.chars().enumerate() {
-        buffer[i] = c as u8;
-    }
+    let message = b"Hello, world!";
 
-    let transmit = lora.transmit_payload(buffer, message.len());
+    let transmit = lora.transmit_payload(message);
     match transmit {
-        Ok(packet_size) => println!("Sent packet with size: {}", packet_size),
-        Err(()) => println!("Error"),
+        Ok(_) => println!("Sent packet"),
+        Err(e) => println!("Error: {:?}", e),
     }
 }
