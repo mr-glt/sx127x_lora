@@ -506,6 +506,7 @@ where
     /// Sets the signal bandwidth of the radio. Supported values are: `7800 Hz`, `10400 Hz`,
     /// `15600 Hz`, `20800 Hz`, `31250 Hz`,`41700 Hz` ,`62500 Hz`,`125000 Hz` and `250000 Hz`
     /// Default value is `125000 Hz`
+    /// See p. 4 of SX1276_77_8_ErrataNote_1.1_STD.pdf for Errata implemetation
     pub fn set_signal_bandwidth(
         &mut self,
         sbw: i64,
@@ -522,6 +523,20 @@ where
             250_000 => 8,
             _ => 9,
         };
+
+        if bw == 9 {
+            if self.frequency < 525 {
+                self.write_register(Register::RegHighBWOptimize1.addr(), 0x02)?;
+                self.write_register(Register::RegHighBWOptimize2.addr(), 0x7f)?;
+            } else {
+                self.write_register(Register::RegHighBWOptimize1.addr(), 0x02)?;
+                self.write_register(Register::RegHighBWOptimize2.addr(), 0x64)?;
+            }
+        } else {
+            self.write_register(Register::RegHighBWOptimize1.addr(), 0x03)?;
+            self.write_register(Register::RegHighBWOptimize2.addr(), 0x65)?;
+        }
+
         let modem_config_1 = self.read_register(Register::RegModemConfig1.addr())?;
         self.write_register(
             Register::RegModemConfig1.addr(),
