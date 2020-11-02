@@ -30,9 +30,11 @@ pub enum Register {
     RegFreqErrorLsb = 0x2a,
     RegRssiWideband = 0x2c,
     RegDetectionOptimize = 0x31,
+    RegHighBWOptimize1 = 0x36,
     RegInvertiq = 0x33,
     RegDetectionThreshold = 0x37,
     RegSyncWord = 0x39,
+    RegHighBWOptimize2 = 0x3a,
     RegInvertiq2 = 0x3b,
     RegDioMapping1 = 0x40,
     RegVersion = 0x42,
@@ -79,6 +81,7 @@ pub enum FskDataModulationShaping {
 
 #[derive(Clone, Copy)]
 pub enum FskRampUpRamDown {
+    #[allow(non_camel_case_types)]
     _3d4ms = 0b000,
     _2ms = 0b0001,
     _1ms = 0b0010,
