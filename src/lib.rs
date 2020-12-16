@@ -214,10 +214,7 @@ where
             explicit_header: true,
             mode: RadioMode::Sleep,
         };
-        sx127x.reset.set_low().map_err(Reset)?;
-        delay.delay_ms(10);
-        sx127x.reset.set_high().map_err(Reset)?;
-        delay.delay_ms(10);
+        sx127x.reset(delay)?;
         let version = sx127x.read_register(Register::RegVersion.addr())?;
         if version == VERSION_CHECK {
             sx127x.set_mode(RadioMode::Sleep)?;
@@ -263,6 +260,17 @@ where
             while self.transmitting()? {}
             Ok(payload_size)
         }
+    }
+
+    pub fn reset(
+        &mut self,
+        delay: &mut dyn DelayMs<u8>,
+    ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
+        self.reset.set_low().map_err(Reset)?;
+        delay.delay_ms(10);
+        self.reset.set_high().map_err(Reset)?;
+        delay.delay_ms(10);
+        Ok(())
     }
 
     pub fn set_dio0_tx_done(&mut self) -> Result<(), Error<E, CS::Error, RESET::Error>> {
