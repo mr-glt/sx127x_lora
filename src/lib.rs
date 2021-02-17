@@ -235,6 +235,24 @@ where
         }
     }
 
+    /// Lets owner of the driver struct to reconfigure the radio.  Takes care of resetting the
+    /// chip, putting it into a sleep mode and pulling CS high - thought he caller has to put if
+    /// back to some of the active modes himself
+    pub fn configure<F>(
+        &mut self,
+        modifier: F,
+        delay: &mut dyn DelayMs<u8>,
+    ) -> Result<(), Error<E, CS::Error, RESET::Error>>
+    where
+        F: FnOnce(&mut Self) -> Result<(), Error<E, CS::Error, RESET::Error>>,
+    {
+        self.reset(delay)?;
+        self.set_mode(RadioMode::Sleep)?;
+        modifier(self)?;
+        self.cs.set_high().map_err(CS)?;
+        Ok(())
+    }
+
     /// Transmits up to 255 bytes of data. To avoid the use of an allocator, this takes a fixed 255 u8
     /// array and a payload size and returns the number of bytes sent if successful.
     pub fn transmit_payload_busy(
