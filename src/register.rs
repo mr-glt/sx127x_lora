@@ -74,7 +74,7 @@ pub enum FskDataModulationShaping {
     None = 1,
     GaussianBt1d0 = 2,
     GaussianBt0d5 = 10,
-    GaussianBt0d3 = 11
+    GaussianBt0d3 = 11,
 }
 
 #[derive(Clone, Copy)]
@@ -94,5 +94,5 @@ pub enum FskRampUpRamDown {
     _20us = 0b1100,
     _15us = 0b1101,
     _12us = 0b1110,
-    _10us = 0b1111
+    _10us = 0b1111,
 }
