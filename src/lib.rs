@@ -141,7 +141,7 @@
 //! ```
 //! ## Interrupts
 //! The crate currently polls the IRQ register on the radio to determine if a new packet has arrived. This
-//! would be more efficient if instead an interrupt was connect the the module's DIO_0 pin. Once interrupt
+//! would be more efficient if instead an interrupt was connect the the module's `DIO_0` pin. Once interrupt
 //! support is available in `embedded-hal`, then this will be added. It is possible to implement this function on a
 //! device-to-device basis by retrieving a packet with the `read_packet()` function.
 
@@ -183,7 +183,7 @@ pub enum Error<SPI, CS, RESET> {
 }
 
 use crate::register::{FskDataModulationShaping, FskRampUpRamDown};
-use Error::*;
+use Error::{Reset, Transmitting, Uninformative, CS, SPI};
 
 #[cfg(not(feature = "version_0x09"))]
 const VERSION_CHECK: u8 = 0x12;
@@ -206,7 +206,7 @@ where
         frequency: i64,
         delay: &mut dyn DelayMs<u8>,
     ) -> Result<Self, Error<E, CS::Error, RESET::Error>> {
-        let mut sx127x = LoRa {
+        let mut sx127x = Self {
             spi,
             cs,
             reset,
@@ -305,38 +305,35 @@ where
         delay: &mut dyn DelayMs<u8>,
     ) -> Result<usize, Error<E, CS::Error, RESET::Error>> {
         self.set_mode(RadioMode::RxContinuous)?;
-        match timeout_ms {
-            Some(value) => {
-                let mut count = 0;
-                let packet_ready = loop {
-                    let packet_ready = self.read_register(Register::RegIrqFlags.addr())?.get_bit(6);
-                    if count >= value || packet_ready {
-                        break packet_ready;
-                    }
-                    count += 1;
-                    delay.delay_ms(1);
-                };
-                if packet_ready {
-                    self.clear_irq()?;
-                    Ok(self.read_register(Register::RegRxNbBytes.addr())? as usize)
-                } else {
-                    Err(Uninformative)
+        if let Some(value) = timeout_ms {
+            let mut count = 0;
+            let packet_ready = loop {
+                let packet_ready = self.read_register(Register::RegIrqFlags.addr())?.get_bit(6);
+                if count >= value || packet_ready {
+                    break packet_ready;
                 }
-            }
-            None => {
-                while !self.read_register(Register::RegIrqFlags.addr())?.get_bit(6) {
-                    delay.delay_ms(100);
-                }
+                count += 1;
+                delay.delay_ms(1);
+            };
+            if packet_ready {
                 self.clear_irq()?;
                 Ok(self.read_register(Register::RegRxNbBytes.addr())? as usize)
+            } else {
+                Err(Uninformative)
             }
+        } else {
+            while !self.read_register(Register::RegIrqFlags.addr())?.get_bit(6) {
+                delay.delay_ms(100);
+            }
+            self.clear_irq()?;
+            Ok(self.read_register(Register::RegRxNbBytes.addr())? as usize)
         }
     }
 
     /// Returns the contents of the fifo as a fixed 255 u8 array. This should only be called is there is a
     /// new packet ready to be read.
     pub fn read_packet(&mut self) -> Result<[u8; 255], Error<E, CS::Error, RESET::Error>> {
-        let mut buffer = [0 as u8; 255];
+        let mut buffer = [0_u8; 255];
         self.clear_irq()?;
         let size = self.read_register(Register::RegRxNbBytes.addr())?;
         let fifo_addr = self.read_register(Register::RegFifoRxCurrentAddr.addr())?;
@@ -356,9 +353,8 @@ where
         {
             Ok(true)
         } else {
-            if (self.read_register(Register::RegIrqFlags.addr())? & IRQ::IrqTxDoneMask.addr()) == 1
-            {
-                self.write_register(Register::RegIrqFlags.addr(), IRQ::IrqTxDoneMask.addr())?;
+            if (self.read_register(Register::RegIrqFlags.addr())? & IRQ::TxDone.addr()) == 1 {
+                self.write_register(Register::RegIrqFlags.addr(), IRQ::TxDone.addr())?;
             }
             Ok(false)
         }
@@ -636,7 +632,7 @@ where
     fn set_ldo_flag(&mut self) -> Result<(), Error<E, CS::Error, RESET::Error>> {
         let sw = self.get_signal_bandwidth()?;
         // Section 4.1.1.5
-        let symbol_duration = 1000 / (sw / ((1 as i64) << self.get_spreading_factor()?));
+        let symbol_duration = 1000 / (sw / ((1_i64) << self.get_spreading_factor()?));
 
         // Section 4.1.1.6
         let ldo_on = symbol_duration > 16;
@@ -670,13 +666,13 @@ where
 
     pub fn put_in_fsk_mode(&mut self) -> Result<(), Error<E, CS::Error, RESET::Error>> {
         // Put in FSK mode
-        let op_mode: &mut u8 = 0x0
+        let op_mode = *0
             .set_bit(7, false) // FSK mode
             .set_bits(5..6, 0x00) // FSK modulation
             .set_bit(3, false) //Low freq registers
             .set_bits(0..2, 0b011); // Mode
 
-        self.write_register(Register::RegOpMode as u8, *op_mode)
+        self.write_register(Register::RegOpMode as u8, op_mode)
     }
 
     pub fn set_fsk_pa_ramp(
@@ -684,11 +680,11 @@ where
         modulation_shaping: FskDataModulationShaping,
         ramp: FskRampUpRamDown,
     ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
-        let pa_ramp: &mut u8 = 0x0
+        let pa_ramp = *0
             .set_bits(5..6, modulation_shaping as u8)
             .set_bits(0..3, ramp as u8);
 
-        self.write_register(Register::RegPaRamp as u8, *pa_ramp)
+        self.write_register(Register::RegPaRamp as u8, pa_ramp)
     }
 }
 /// Modes of the radio and their corresponding register values.
@@ -704,7 +700,7 @@ pub enum RadioMode {
 
 impl RadioMode {
     /// Returns the address of the mode.
-    pub fn addr(self) -> u8 {
+    pub const fn addr(self) -> u8 {
         self as u8
     }
 }
