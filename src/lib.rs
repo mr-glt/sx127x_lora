@@ -353,8 +353,9 @@ where
 
     /// Returns true if the radio is currently transmitting a packet.
     pub fn transmitting(&mut self) -> Result<bool, Error<E, CS::Error, RESET::Error>> {
-        if (self.read_register(Register::RegOpMode.addr())? & RadioMode::Tx.addr())
-            == RadioMode::Tx.addr()
+        let op_mode = self.read_register(Register::RegOpMode.addr())?;
+        if (op_mode & RadioMode::Tx.addr()) == RadioMode::Tx.addr()
+            || (op_mode & RadioMode::FsTx.addr()) == RadioMode::FsTx.addr()
         {
             Ok(true)
         } else {
@@ -716,6 +717,7 @@ pub enum RadioMode {
     LongRangeMode = 0x80,
     Sleep = 0x00,
     Stdby = 0x01,
+    FsTx = 0x02,
     Tx = 0x03,
     RxContinuous = 0x05,
     RxSingle = 0x06,
