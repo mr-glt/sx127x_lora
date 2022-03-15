@@ -235,6 +235,24 @@ where
         }
     }
 
+    /// Lets owner of the driver struct to reconfigure the radio.  Takes care of resetting the
+    /// chip, putting it into a sleep mode and pulling CS high - thought he caller has to put if
+    /// back to some of the active modes himself
+    pub fn configure<F>(
+        &mut self,
+        modifier: F,
+        delay: &mut dyn DelayMs<u8>,
+    ) -> Result<(), Error<E, CS::Error, RESET::Error>>
+    where
+        F: FnOnce(&mut Self) -> Result<(), Error<E, CS::Error, RESET::Error>>,
+    {
+        self.reset(delay)?;
+        self.set_mode(RadioMode::Sleep)?;
+        modifier(self)?;
+        self.cs.set_high().map_err(CS)?;
+        Ok(())
+    }
+
     /// Transmits up to 255 bytes of data. To avoid the use of an allocator, this takes a fixed 255 u8
     /// array and a payload size and returns the number of bytes sent if successful.
     pub fn transmit_payload_busy(
@@ -271,8 +289,7 @@ where
 
     pub fn transmit_payload(
         &mut self,
-        buffer: [u8; 255],
-        payload_size: usize,
+        payload: &[u8],
     ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
         if self.transmitting()? {
             Err(Transmitting)
@@ -287,10 +304,13 @@ where
             self.write_register(Register::RegIrqFlags.addr(), 0)?;
             self.write_register(Register::RegFifoAddrPtr.addr(), 0)?;
             self.write_register(Register::RegPayloadLength.addr(), 0)?;
-            for byte in buffer.iter().take(payload_size) {
-                self.write_register(Register::RegFifo.addr(), *byte)?;
+            for &byte in payload.iter().take(255) {
+                self.write_register(Register::RegFifo.addr(), byte)?;
             }
-            self.write_register(Register::RegPayloadLength.addr(), payload_size as u8)?;
+            self.write_register(
+                Register::RegPayloadLength.addr(),
+                payload.len().min(255) as u8,
+            )?;
             self.set_mode(RadioMode::Tx)?;
             Ok(())
         }
@@ -330,12 +350,12 @@ where
         }
     }
 
-    /// Returns the contents of the fifo as a fixed 255 u8 array. This should only be called is there is a
+    /// Returns the contents of the fifo as a fixed 255 u8 array. This should only be called if there is a
     /// new packet ready to be read.
     pub fn read_packet(&mut self) -> Result<[u8; 255], Error<E, CS::Error, RESET::Error>> {
         let mut buffer = [0_u8; 255];
         self.clear_irq()?;
-        let size = self.read_register(Register::RegRxNbBytes.addr())?;
+        let size = self.get_ready_packet_size()?;
         let fifo_addr = self.read_register(Register::RegFifoRxCurrentAddr.addr())?;
         self.write_register(Register::RegFifoAddrPtr.addr(), fifo_addr)?;
         for i in 0..size {
@@ -346,10 +366,17 @@ where
         Ok(buffer)
     }
 
+    /// Returns size of a packet read into FIFO. This should only be calle if there is a new packet
+    /// ready to be read.
+    pub fn get_ready_packet_size(&mut self) -> Result<u8, Error<E, CS::Error, RESET::Error>> {
+        self.read_register(Register::RegRxNbBytes.addr())
+    }
+
     /// Returns true if the radio is currently transmitting a packet.
     pub fn transmitting(&mut self) -> Result<bool, Error<E, CS::Error, RESET::Error>> {
-        if (self.read_register(Register::RegOpMode.addr())? & RadioMode::Tx.addr())
-            == RadioMode::Tx.addr()
+        let op_mode = self.read_register(Register::RegOpMode.addr())?;
+        if (op_mode & RadioMode::Tx.addr()) == RadioMode::Tx.addr()
+            || (op_mode & RadioMode::FsTx.addr()) == RadioMode::FsTx.addr()
         {
             Ok(true)
         } else {
@@ -502,6 +529,7 @@ where
     /// Sets the signal bandwidth of the radio. Supported values are: `7800 Hz`, `10400 Hz`,
     /// `15600 Hz`, `20800 Hz`, `31250 Hz`,`41700 Hz` ,`62500 Hz`,`125000 Hz` and `250000 Hz`
     /// Default value is `125000 Hz`
+    /// See p. 4 of SX1276_77_8_ErrataNote_1.1_STD.pdf for Errata implemetation
     pub fn set_signal_bandwidth(
         &mut self,
         sbw: i64,
@@ -518,6 +546,20 @@ where
             250_000 => 8,
             _ => 9,
         };
+
+        if bw == 9 {
+            if self.frequency < 525 {
+                self.write_register(Register::RegHighBWOptimize1.addr(), 0x02)?;
+                self.write_register(Register::RegHighBWOptimize2.addr(), 0x7f)?;
+            } else {
+                self.write_register(Register::RegHighBWOptimize1.addr(), 0x02)?;
+                self.write_register(Register::RegHighBWOptimize2.addr(), 0x64)?;
+            }
+        } else {
+            self.write_register(Register::RegHighBWOptimize1.addr(), 0x03)?;
+            self.write_register(Register::RegHighBWOptimize2.addr(), 0x65)?;
+        }
+
         let modem_config_1 = self.read_register(Register::RegModemConfig1.addr())?;
         self.write_register(
             Register::RegModemConfig1.addr(),
@@ -666,7 +708,8 @@ where
 
     pub fn put_in_fsk_mode(&mut self) -> Result<(), Error<E, CS::Error, RESET::Error>> {
         // Put in FSK mode
-        let op_mode = *0
+        let mut op_mode: u8 = 0x0;
+        op_mode
             .set_bit(7, false) // FSK mode
             .set_bits(5..6, 0x00) // FSK modulation
             .set_bit(3, false) //Low freq registers
@@ -680,7 +723,8 @@ where
         modulation_shaping: FskDataModulationShaping,
         ramp: FskRampUpRamDown,
     ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
-        let pa_ramp = *0
+        let mut pa_ramp: u8 = 0x0;
+        pa_ramp
             .set_bits(5..6, modulation_shaping as u8)
             .set_bits(0..3, ramp as u8);
 
@@ -693,6 +737,7 @@ pub enum RadioMode {
     LongRangeMode = 0x80,
     Sleep = 0x00,
     Stdby = 0x01,
+    FsTx = 0x02,
     Tx = 0x03,
     RxContinuous = 0x05,
     RxSingle = 0x06,

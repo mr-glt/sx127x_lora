@@ -32,13 +32,9 @@ fn main() {
 
     lora.set_tx_power(17, 1).expect("Failed to set TX power"); //Using PA_BOOST. See your board for correct pin.
 
-    let message = "Hello, world!";
-    let mut buffer = [0; 255];
-    for (i, c) in message.chars().enumerate() {
-        buffer[i] = c as u8;
-    }
+    let message = b"Hello, world!";
 
-    let transmit = lora.transmit_payload(buffer, message.len());
+    let transmit = lora.transmit_payload(message);
     match transmit {
         Ok(()) => println!("Sent packet"),
         Err(e) => println!("Error: {:?}", e),
