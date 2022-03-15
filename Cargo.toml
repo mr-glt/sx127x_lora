@@ -7,13 +7,16 @@ readme = "README.md"
 edition = "2018"
 license = "Apache-2.0"
 categories = ["embedded", "hardware-support", "no-std"]
-keywords = ["embedded-hal-driver","lora","sx1276","radio"]
+keywords = ["embedded-hal-driver", "lora", "sx1276", "radio"]
 description = "A platform-agnostic driver for Semtech SX1276/77/78/79 based boards."
 
+[dev-dependencies]
+linux-embedded-hal = "0.3.2"
+
 [dependencies]
-embedded-hal = "~0.2"
-bit_field = "~0.10"
+bit_field = "0.10.1"
+embedded-hal = "0.2.6"
 
 [features]
-version_0x09 = []
 default = []
+version_0x09 = []
