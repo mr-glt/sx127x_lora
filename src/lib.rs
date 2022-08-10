@@ -222,8 +222,8 @@ where
         if version == VERSION_CHECK {
             sx127x.set_mode(RadioMode::Sleep)?;
             sx127x.set_frequency(frequency)?;
-            sx127x.write_register(Register::RegFifoTxBaseAddr.addr(), 0)?;
-            sx127x.write_register(Register::RegFifoRxBaseAddr.addr(), 0)?;
+            sx127x.set_fifo_tx_base(0)?;
+            sx127x.set_fifo_rx_base(0)?;
             let lna = sx127x.read_register(Register::RegLna.addr())?;
             sx127x.write_register(Register::RegLna.addr(), lna | 0x03)?;
             sx127x.write_register(Register::RegModemConfig3.addr(), 0x04)?;
@@ -270,8 +270,9 @@ where
                 self.set_implicit_header_mode()?;
             }
 
+            let tx_base_addr = self.read_register(Register::RegFifoTxBaseAddr.addr())?;
             self.write_register(Register::RegIrqFlags.addr(), 0)?;
-            self.write_register(Register::RegFifoAddrPtr.addr(), 0)?;
+            self.write_register(Register::RegFifoAddrPtr.addr(), tx_base_addr)?;
             self.write_register(Register::RegPayloadLength.addr(), 0)?;
             for byte in buffer.iter().take(payload_size) {
                 self.write_register(Register::RegFifo.addr(), *byte)?;
@@ -301,8 +302,9 @@ where
                 self.set_implicit_header_mode()?;
             }
 
+            let tx_base_addr = self.read_register(Register::RegFifoTxBaseAddr.addr())?;
             self.write_register(Register::RegIrqFlags.addr(), 0)?;
-            self.write_register(Register::RegFifoAddrPtr.addr(), 0)?;
+            self.write_register(Register::RegFifoAddrPtr.addr(), tx_base_addr)?;
             self.write_register(Register::RegPayloadLength.addr(), 0)?;
             for &byte in payload.iter().take(255) {
                 self.write_register(Register::RegFifo.addr(), byte)?;
@@ -733,6 +735,22 @@ where
             .set_bits(0..3, ramp as u8);
 
         self.write_register(Register::RegPaRamp as u8, pa_ramp)
+    }
+
+    pub fn set_fifo_rx_base(
+        &mut self,
+        base_addr: u8,
+    ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
+        self.write_register(Register::RegFifoRxBaseAddr.addr(), base_addr)?;
+        Ok(())
+    }
+
+    pub fn set_fifo_tx_base(
+        &mut self,
+        base_addr: u8,
+    ) -> Result<(), Error<E, CS::Error, RESET::Error>> {
+        self.write_register(Register::RegFifoTxBaseAddr.addr(), base_addr)?;
+        Ok(())
     }
 }
 /// Modes of the radio and their corresponding register values.
