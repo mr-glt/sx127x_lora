@@ -246,7 +246,11 @@ where
     where
         F: FnOnce(&mut Self) -> Result<(), Error<E, CS::Error, RESET::Error>>,
     {
-        self.reset(delay)?;
+        // this is what the new method does
+        self.reset.set_low().map_err(Reset)?;
+        delay.delay_ms(10);
+        self.reset.set_high().map_err(Reset)?;
+        delay.delay_ms(10);
         self.set_mode(RadioMode::Sleep)?;
         modifier(self)?;
         self.cs.set_high().map_err(CS)?;
