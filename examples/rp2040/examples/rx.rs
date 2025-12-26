@@ -1,6 +1,7 @@
 //! Receive packets using the LoRa 1276 module on the Adafruit Feather RP2040 RFM95 board
 //!
-//! This will blink the on-board LED when reception is successful. On failure, nop.
+//! This will blink the on-board LED if reception is successful. On failure, the on-board LED will
+//! be turned on.
 
 #![no_std]
 #![no_main]
@@ -73,10 +74,11 @@ fn main() -> ! {
     let spi_device = RefCellDevice::new(&spi_bus, nss, timer).unwrap();
     let mut lora = sx127x_lora::LoRa::new(spi_device, reset, LORA_FREQUENCY_MHZ).unwrap();
 
-    let message = "hello, world!";
-    let mut buffer = [0;255];
-    for (i,c) in message.chars().enumerate() {
-        buffer[i] = c as u8;
+    {
+        led.set_high().unwrap();
+        timer.delay_ms(500);
+        led.set_low().unwrap();
+        timer.delay_ms(500);
     }
 
     loop {
@@ -89,7 +91,7 @@ fn main() -> ! {
                     timer.delay_ms(500);
                 }
             },
-            Err(_) => {}
+            Err(_) => led.set_high().unwrap()
         }
     }
 }

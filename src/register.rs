@@ -19,6 +19,7 @@ pub enum Register {
     RegRxNbBytes = 0x13,
     RegPktSnrValue = 0x19,
     RegPktRssiValue = 0x1a,
+    RegHopChannel = 0x1c,
     RegModemConfig1 = 0x1d,
     RegModemConfig2 = 0x1e,
     RegPreambleMsb = 0x20,
@@ -46,13 +47,6 @@ pub enum PaConfig {
     PaOutputRfoPin = 0,
 }
 
-#[derive(Clone, Copy)]
-pub enum IRQ {
-    IrqTxDoneMask = 0x08,
-    IrqPayloadCrcErrorMask = 0x20,
-    IrqRxDoneMask = 0x40,
-}
-
 impl Register {
     pub fn addr(self) -> u8 {
         self as u8
@@ -60,12 +54,6 @@ impl Register {
 }
 
 impl PaConfig {
-    pub fn addr(self) -> u8 {
-        self as u8
-    }
-}
-
-impl IRQ {
     pub fn addr(self) -> u8 {
         self as u8
     }
