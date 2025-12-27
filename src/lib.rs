@@ -10,11 +10,11 @@
 //! * Modtronix inAir4, inAir9, and inAir9B
 //! * HopeRF RFM95W, RFM96W, and RFM98W
 //! * Adafruit RP2040 RFM95
+//! 
 //! ## Interrupts
-//! The crate currently polls the IRQ register on the radio to determine if a new packet has arrived. This
-//! would be more efficient if instead an interrupt was connected the module's DIO_0 pin. Once interrupt
-//! support is available in `embedded-hal`, then this will be added. It is possible to implement this function on a
-//! device-to-device basis by retrieving a packet with the `read_packet()` function.
+//! The library currently supports the `TxDone` and `RxDone` interrupts on the `DIO0` pin. Blocking (e.g. `poll_irq(...)`)
+//! and GPIO-interrupt-driven (e.g. `RxDone` on `DIO0`) approaches are available, and you can see examples of both in
+//! `examples/rp2040`.
 
 use bit_field::BitField;
 use embedded_hal::digital::{ErrorType, OutputPin};
@@ -52,7 +52,7 @@ pub enum Sx127xError<SPI, RESET> {
     Receiving,
 }
 
-use crate::register::{FskDataModulationShaping, FskRampUpRamDown};
+use crate::register::{FskDataModulationShaping, FskRampUpRamDown, crc_validation_needed, rx_packet_termination_ok};
 use Sx127xError::*;
 
 #[cfg(not(feature = "version_0x09"))]
@@ -235,22 +235,26 @@ where
         }
     }
 
-    /// Returns the contents of the fifo as a fixed 255 u8 array. This should only be called if there is a
-    /// new packet ready to be read.
-    pub fn read_packet(&mut self) -> Result<[u8; 255], Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
-        // check CrcOnPayload bit to determine if CRC validation is needed
+    /// Validates the CRC (if needed) and ensures that the ValidHeader, PayloadCrcError, RxDone nor
+    /// RxTimeout interrupt flags are set.
+    fn validate_rx_packet(&mut self) -> Result<(), Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
         let reg_hop_channel = self.read_register(Register::RegHopChannel.addr())?;
-        if (reg_hop_channel >> 6 & 0x1) == 1 {
-            // if ValidHeader, PayloadCrcError, RxDone or RxTimeout bits are set, then packet
-            // termination was unsuccessful
+        if crc_validation_needed(reg_hop_channel) {
             let reg_irq_flags = self.read_register(Register::RegIrqFlags.addr())?;
-            if (reg_irq_flags >> 4) & 0xf != 0x0 {
+            if rx_packet_termination_ok(reg_irq_flags) {
                 return Err(Receiving)
             }
         }
+        Ok(())
+    }
+
+    /// Returns the contents of the fifo as a fixed 255 u8 array. This should only be called if there is a
+    /// new packet ready to be read.
+    pub fn read_packet(&mut self) -> Result<[u8; 255], Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
+        self.validate_rx_packet()?;
 
         let mut buffer = [0u8; 255];
-        //self.clear_irq()?;
+        self.clear_irq()?;
         let size = self.get_ready_packet_size()?;
         let fifo_addr = self.read_register(Register::RegFifoRxCurrentAddr.addr())?;
         self.write_register(Register::RegFifoAddrPtr.addr(), fifo_addr)?;
@@ -285,7 +289,6 @@ where
     }
 
     /// Clears the radio's IRQ registers.
-    // TODO figure out what this does (if anything)
     pub fn clear_irq(&mut self) -> Result<(), Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
         let irq_flags = self.read_register(Register::RegIrqFlags.addr())?;
         self.write_register(Register::RegIrqFlags.addr(), irq_flags)
