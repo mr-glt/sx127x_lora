@@ -9,150 +9,23 @@
 //! RESET. This cate works with any Semtech based board including:
 //! * Modtronix inAir4, inAir9, and inAir9B
 //! * HopeRF RFM95W, RFM96W, and RFM98W
-//! # Examples
-//! ## Raspberry Pi Basic Send
-//! Utilizes a Raspberry Pi to send a message. The example utilizes the `linux_embedded_hal` crate.
-//! ```no_run
-//! #![feature(extern_crate_item_prelude)]
-//! extern crate sx127x_lora;
-//! extern crate linux_embedded_hal as hal;
-//!
-//! use hal::spidev::{self, SpidevOptions};
-//! use hal::{Pin, Spidev};
-//! use hal::sysfs_gpio::Direction;
-//! use hal::Delay;
-
-//! const LORA_CS_PIN: u64 = 8;
-//! const LORA_RESET_PIN: u64 = 21;
-//! const FREQUENCY: i64 = 915;
-//!
-//! fn main(){
-//!
-//!     let mut spi = Spidev::open("/dev/spidev0.0").unwrap();
-//!     let options = SpidevOptions::new()
-//!         .bits_per_word(8)
-//!         .max_speed_hz(20_000)
-//!         .mode(spidev::SPI_MODE_0)
-//!         .build();
-//!     spi.configure(&options).unwrap();
-//!
-//!     let cs = Pin::new(LORA_CS_PIN);
-//!     cs.export().unwrap();
-//!     cs.set_direction(Direction::Out).unwrap();
-//!
-//!     let reset = Pin::new(LORA_RESET_PIN);
-//!     reset.export().unwrap();
-//!     reset.set_direction(Direction::Out).unwrap();
-//!
-//!     let mut lora = sx127x_lora::LoRa::new(
-//!         spi, cs, reset,  FREQUENCY, Delay)
-//!         .expect("Failed to communicate with radio module!");
-//!
-//!     lora.set_tx_power(17,1); //Using PA_BOOST. See your board for correct pin.
-//!
-//!     let message = "Hello, world!";
-//!     let mut buffer = [0;255];
-//!     for (i,c) in message.chars().enumerate() {
-//!         buffer[i] = c as u8;
-//!     }
-//!
-//!     let transmit = lora.transmit_payload(buffer,message.len());
-//!     match transmit {
-//!         Ok(packet_size) => println!("Sent packet with size: {}", packet_size),
-//!         Err(()) => println!("Error"),
-//!     }
-//! }
-//! ```
-//! ## STM32F429 Blocking Receive
-//! Utilizes a STM32F429 to receive data using the blocking `poll_irq(timeout)` function. It prints
-//! the received packet back out over semihosting. The example utilizes the `stm32f429_hal`, `cortex_m`,
-//! and `panic_semihosting` crates.
-//! ```no_run
-//! #![no_std]
-//! #![no_main]
-//!
-//! extern crate sx127x_lora;
-//! extern crate stm32f429_hal as hal;
-//! extern crate cortex_m;
-//! extern crate panic_semihosting;
-//!
-//! use sx127x_lora::MODE;
-//! use cortex_m_semihosting::*;
-//! use hal::gpio::GpioExt;
-//! use hal::flash::FlashExt;
-//! use hal::rcc::RccExt;
-//! use hal::time::MegaHertz;
-//! use hal::spi::Spi;
-//! use hal::delay::Delay;
-//!
-//! const FREQUENCY: i64 = 915;
-//!
-//! #[entry]
-//! fn main() -> !{
-//!     let cp = cortex_m::Peripherals::take().unwrap();
-//!     let p = hal::stm32f429::Peripherals::take().unwrap();
-//!
-//!     let mut rcc = p.RCC.constrain();
-//!     let mut flash = p.FLASH.constrain();
-//!     let clocks = rcc
-//!         .cfgr
-//!         .sysclk(MegaHertz(64))
-//!         .pclk1(MegaHertz(32))
-//!         .freeze(&mut flash.acr);
-//!
-//!     let mut gpioa = p.GPIOA.split(&mut rcc.ahb1);
-//!     let mut gpiod = p.GPIOD.split(&mut rcc.ahb1);
-//!     let mut gpiof = p.GPIOF.split(&mut rcc.ahb1);
-//!
-//!     let sck = gpioa.pa5.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
-//!     let miso = gpioa.pa6.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
-//!     let mosi = gpioa.pa7.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
-//!     let reset = gpiof.pf13.into_push_pull_output(&mut gpiof.moder, &mut gpiof.otyper);
-//!     let cs = gpiod.pd14.into_push_pull_output(&mut gpiod.moder, &mut gpiod.otyper);
-//!
-//!     let spi = Spi::spi1(
-//!         p.SPI1,
-//!         (sck, miso, mosi),
-//!         MODE,
-//!         MegaHertz(8),
-//!         clocks,
-//!         &mut rcc.apb2,
-//!     );
-//!
-//!     let mut lora = sx127x_lora::LoRa::new(
-//!         spi, cs, reset, FREQUENCY,
-//!         Delay::new(cp.SYST, clocks)).unwrap();
-//!
-//!     loop {
-//!         let poll = lora.poll_irq(Some(30)); //30 Second timeout
-//!         match poll {
-//!             Ok(size) =>{
-//!                hprint!("with Payload: ");
-//!                let buffer = lora.read_packet(); // Received buffer. NOTE: 255 bytes are always returned
-//!                for i in 0..size{
-//!                    hprint!("{}",buffer[i] as char).unwrap();
-//!                }
-//!                hprintln!();
-//!             },
-//!             Err(()) => hprintln!("Timeout").unwrap(),
-//!         }
-//!     }
-//! }
-//! ```
+//! * Adafruit RP2040 RFM95
+//! 
 //! ## Interrupts
-//! The crate currently polls the IRQ register on the radio to determine if a new packet has arrived. This
-//! would be more efficient if instead an interrupt was connected the module's DIO_0 pin. Once interrupt
-//! support is available in `embedded-hal`, then this will be added. It is possible to implement this function on a
-//! device-to-device basis by retrieving a packet with the `read_packet()` function.
+//! The library currently supports the `TxDone` and `RxDone` interrupts on the `DIO0` pin. Blocking (e.g. `poll_irq(...)`)
+//! and GPIO-interrupt-driven (e.g. `RxDone` on `DIO0`) approaches are available, and you can see examples of both in
+//! `examples/rp2040`.
 
 use bit_field::BitField;
 use embedded_hal::digital::{ErrorType, OutputPin};
 use embedded_hal::spi::{Mode, Operation, Phase, Polarity, SpiDevice};
 
 mod register;
+mod interrupt;
+
 use self::register::PaConfig;
 use self::register::Register;
-use self::register::IRQ;
+pub use self::interrupt::Interrupt;
 
 /// Provides the necessary SPI mode configuration for the radio
 pub const MODE: Mode = Mode {
@@ -176,9 +49,10 @@ pub enum Sx127xError<SPI, RESET> {
     Reset(RESET),
     SPI(SPI),
     Transmitting,
+    Receiving,
 }
 
-use crate::register::{FskDataModulationShaping, FskRampUpRamDown};
+use crate::register::{FskDataModulationShaping, FskRampUpRamDown, crc_validation_needed, rx_packet_termination_ok};
 use Sx127xError::*;
 
 #[cfg(not(feature = "version_0x09"))]
@@ -270,6 +144,7 @@ where
         }
     }
 
+    /// Reset the chip.
     pub fn reset(&mut self) -> Result<(), Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
         self.reset.set_low().map_err(Reset)?;
         self.spi.transaction(&mut [Operation::DelayNs(10_000_000)]).map_err(SPI)?;
@@ -278,8 +153,19 @@ where
         Ok(())
     }
 
-    pub fn set_dio0_tx_done(&mut self) -> Result<(), Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
-        self.write_register(Register::RegDioMapping1.addr(), 0b01_00_00_00)
+    /// Enables an interrupt.
+    pub fn enable_interrupt(&mut self, interrupt: Interrupt) -> Result<(), Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
+        let mut reg_val = self.read_register(interrupt.reg_addr())?;
+        reg_val = reg_val & !interrupt.mask() | (interrupt as u8) & interrupt.mask();
+        self.write_register(interrupt.reg_addr(), reg_val)?;
+        Ok(())
+    }
+
+    /// Clears an interrupt.
+    pub fn clear_interrupt(&mut self, interrupt: Interrupt) -> Result<(), Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
+        let reg_val = self.read_register(Register::RegIrqFlags.addr())?;
+        self.write_register(Register::RegIrqFlags.addr(), reg_val | interrupt.flag())?;
+        Ok(())
     }
 
     pub fn transmit_payload(
@@ -328,7 +214,6 @@ where
                         break packet_ready;
                     }
                     count += 1;
-                    // delay.delay_ms(1);
                     self.spi.transaction(&mut [Operation::DelayNs(1_000_000)]).map_err(SPI)?;
 
                 };
@@ -341,7 +226,6 @@ where
             }
             None => {
                 while !self.read_register(Register::RegIrqFlags.addr())?.get_bit(6) {
-                    // delay.delay_ms(100);
                     self.spi.transaction(&mut [Operation::DelayNs(100_000_000)]).map_err(SPI)?;
 
                 }
@@ -351,9 +235,24 @@ where
         }
     }
 
+    /// Validates the CRC (if needed) and ensures that the ValidHeader, PayloadCrcError, RxDone nor
+    /// RxTimeout interrupt flags are set.
+    fn validate_rx_packet(&mut self) -> Result<(), Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
+        let reg_hop_channel = self.read_register(Register::RegHopChannel.addr())?;
+        if crc_validation_needed(reg_hop_channel) {
+            let reg_irq_flags = self.read_register(Register::RegIrqFlags.addr())?;
+            if rx_packet_termination_ok(reg_irq_flags) {
+                return Err(Receiving)
+            }
+        }
+        Ok(())
+    }
+
     /// Returns the contents of the fifo as a fixed 255 u8 array. This should only be called if there is a
     /// new packet ready to be read.
     pub fn read_packet(&mut self) -> Result<[u8; 255], Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
+        self.validate_rx_packet()?;
+
         let mut buffer = [0u8; 255];
         self.clear_irq()?;
         let size = self.get_ready_packet_size()?;
@@ -381,9 +280,9 @@ where
         {
             Ok(true)
         } else {
-            if (self.read_register(Register::RegIrqFlags.addr())? & IRQ::IrqTxDoneMask.addr()) == 1
+            if (self.read_register(Register::RegIrqFlags.addr())? & Interrupt::TxDone.flag()) == 1
             {
-                self.write_register(Register::RegIrqFlags.addr(), IRQ::IrqTxDoneMask.addr())?;
+                self.write_register(Register::RegIrqFlags.addr(), Interrupt::TxDone.flag())?;
             }
             Ok(false)
         }
@@ -684,14 +583,14 @@ where
         self.write_register(Register::RegModemConfig3.addr(), config_3)
     }
 
-    pub fn read_register(&mut self, reg: u8) -> Result<u8, Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
+    fn read_register(&mut self, reg: u8) -> Result<u8, Sx127xError<SPI::Error, <RESET as ErrorType>::Error>> {
         let mut read = [0; 2];
         let write = [reg & 0x7f, 0];
         self.spi.transfer(&mut read, &write).map_err(SPI)?;
         Ok(read[1])
     }
 
-    pub fn write_register(
+    fn write_register(
         &mut self,
         reg: u8,
         byte: u8,

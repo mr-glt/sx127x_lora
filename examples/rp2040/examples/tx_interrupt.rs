@@ -1,7 +1,10 @@
-//! Transmit packets using the LoRa 1276 module on the Adafruit Feather RP2040 RFM95 board.
+//! Transmit packets and handle completion via interrupt using the LoRa 1276 module on the Adafruit
+//! Feather RP2040 RFM95 board.
 //!
-//! Output is available via serial over a USB-C connection, and panics will turn the on-board LED
-//! on.
+//! The chip will trigger the TxDone interrupt on DIO0 if transmit was successful. Output is
+//! available via serial over a USB-C connection, and panics will turn the on-board LED on.
+//!
+//! Note that the `TxDone` interrupt needs to explicitly cleared by app code.
 
 #![no_std]
 #![no_main]
@@ -11,23 +14,26 @@ extern crate sx127x_lora;
 use core::cell::RefCell;
 use core::ops::DerefMut;
 use core::panic::PanicInfo;
+use core::sync::atomic::{AtomicBool, Ordering};
+use cortex_m::asm::wfi;
 use critical_section::Mutex;
 use embedded_hal::delay::DelayNs;
 use embedded_hal::digital::{OutputPin, PinState};
 use embedded_hal_bus::spi::RefCellDevice;
 use rp2040_hal as hal;
 use rp2040_hal::clocks::init_clocks_and_plls;
-use rp2040_hal::gpio::{FunctionSioOutput, Pin, Pins, PullNone};
-use rp2040_hal::{Sio, Timer, Watchdog, pac, Clock};
 use rp2040_hal::fugit::RateExtU32;
-use rp2040_hal::gpio::bank0::Gpio13;
+use rp2040_hal::gpio::{FunctionSioInput, FunctionSioOutput, Pin, Pins, PullDown, PullNone};
+use rp2040_hal::{Sio, Timer, Watchdog, pac, Clock};
+use rp2040_hal::gpio::bank0::{Gpio13, Gpio21};
+use rp2040_hal::gpio::Interrupt::EdgeHigh;
 use rp2040_hal::multicore::{Multicore, Stack};
-use rp2040_hal::pac::{PPB, PSM};
+use rp2040_hal::pac::{interrupt, PPB, PSM};
 use rp2040_hal::sio::SioFifo;
-use usb_device::class_prelude::UsbBusAllocator;
-use usb_device::prelude::*;
+use usb_device::bus::UsbBusAllocator;
+use usb_device::device::{StringDescriptors, UsbDeviceBuilder, UsbVidPid};
 use usbd_serial::{SerialPort, USB_CLASS_CDC};
-use sx127x_lora::Sx127xError;
+use sx127x_lora::{Interrupt, Sx127xError};
 use crate::SioFifoMsg::*;
 
 enum SioFifoMsg {
@@ -93,8 +99,12 @@ static CORE1_STACK: Stack<4096> = Stack::new();
 const XOSC_CRYSTAL_FREQ_HZ: u32 = 12_000_000;
 const LORA_FREQUENCY_MHZ: i64 = 915;
 
-static SIO_FIFO: Mutex<RefCell<Option<SioFifo>>> = Mutex::new(RefCell::new(None));
+type Dio0 = Pin<Gpio21, FunctionSioInput, PullDown>;
+
+static DIO0: Mutex<RefCell<Option<Dio0>>> = Mutex::new(RefCell::new(None));
+static DIO0_FLAG: AtomicBool = AtomicBool::new(false);
 static LED_PIN: Mutex<RefCell<Option<Pin<Gpio13, FunctionSioOutput, PullNone>>>> = Mutex::new(RefCell::new(None));
+static SIO_FIFO: Mutex<RefCell<Option<SioFifo>>> = Mutex::new(RefCell::new(None));
 
 fn core1_task(_sys_freq: u32) -> ! {
     let mut pac = unsafe { pac::Peripherals::steal() };
@@ -161,13 +171,6 @@ fn main() -> ! {
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let mut sio = Sio::new(pac.SIO);
 
-    let pins = Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
-
     let clocks = init_clocks_and_plls(
         XOSC_CRYSTAL_FREQ_HZ,
         pac.XOSC,
@@ -180,6 +183,12 @@ fn main() -> ! {
         .ok()
         .unwrap();
     let mut timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+    let pins = Pins::new(
+        pac.IO_BANK0,
+        pac.PADS_BANK0,
+        sio.gpio_bank0,
+        &mut pac.RESETS,
+    );
 
     init_core_1(
         &mut pac.PSM,
@@ -187,11 +196,6 @@ fn main() -> ! {
         &mut sio.fifo,
         clocks.system_clock.freq().to_Hz()
     );
-
-    critical_section::with(|cs| {
-        SIO_FIFO.borrow(cs).replace(Some(sio.fifo));
-        LED_PIN.borrow(cs).replace(Some(pins.gpio13.reconfigure()));
-    });
 
     let spi_mosi = pins.gpio15.into_function::<hal::gpio::FunctionSpi>();
     let spi_miso = pins.gpio8.into_function::<hal::gpio::FunctionSpi>();
@@ -210,14 +214,34 @@ fn main() -> ! {
 
     let spi_device = RefCellDevice::new(&spi_bus, nss, timer).unwrap();
     let mut lora = sx127x_lora::LoRa::new(spi_device, reset, LORA_FREQUENCY_MHZ).unwrap();
+    lora.enable_interrupt(Interrupt::TxDone).unwrap();
 
-    let message = "hello, world!\r\n";
-    let mut buffer = [0u8; 255];
+    let dio0: Pin<Gpio21, FunctionSioInput, PullDown> = pins.gpio21.reconfigure();
+    dio0.set_interrupt_enabled(EdgeHigh, true);
+
+    let message = "hello, world!";
+    let mut buffer = [0;255];
     for (i,c) in message.chars().enumerate() {
         buffer[i] = c as u8;
     }
 
+    critical_section::with(|cs| {
+        DIO0.borrow(cs).replace(Some(dio0));
+        SIO_FIFO.borrow(cs).replace(Some(sio.fifo));
+        LED_PIN.borrow(cs).replace(Some(pins.gpio13.reconfigure()));
+    });
+
+    unsafe {
+        pac::NVIC::unmask(pac::Interrupt::IO_IRQ_BANK0);
+    }
+
     loop {
+        if DIO0_FLAG.load(Ordering::Relaxed) {
+            DIO0_FLAG.store(false, Ordering::Relaxed);
+            lora.clear_interrupt(Interrupt::TxDone).unwrap();
+            timer.delay_ms(5_000);
+        }
+
         let msg = match lora.transmit_payload(&buffer) {
             Ok(_) => TxOk,
             Err(e) => match e {
@@ -230,10 +254,20 @@ fn main() -> ! {
             },
         };
         send_sio_fifo_msg(msg);
-        timer.delay_ms(5_000);
+        wfi();
     }
 }
 
+#[interrupt]
+fn IO_IRQ_BANK0() {
+    critical_section::with(|cs| {
+        let mut maybe_dio0 = DIO0.borrow(cs).borrow_mut();
+        if let Some(dio0) = maybe_dio0.as_mut() {
+            DIO0_FLAG.store(true, Ordering::Relaxed);
+            dio0.clear_interrupt(EdgeHigh);
+        }
+    })
+}
 
 #[panic_handler]
 fn panic(_: &PanicInfo) -> ! {
